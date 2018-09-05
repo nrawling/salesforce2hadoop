@@ -6,8 +6,26 @@ import java.util.Calendar
 import co.datadudes.wsdl2avro.WSDL2Avro
 import AvroUtils._
 import com.typesafe.scalalogging.LazyLogging
+// Used for configuration options - file
+import com.typesafe.config.ConfigFactory
+// ENV variables
+import scala.util.Properties
 
 object SFImportCLIRunner extends App with LazyLogging {
+
+class MyConfig(fileNameOption: Option[String] = None) {
+     
+  val config = fileNameOption.fold(
+                  ifEmpty = ConfigFactory.load() )(
+                  file => ConfigFactory.load(file) )
+ 
+  def envOrElseConfig(name: String): String = {
+    Properties.envOrElse(
+      name.toUpperCase.replaceAll("""\.""", "_"),
+      config.getString(name)
+    )
+  }
+}
 
   case class Config(command: String = "",
                     sfUsername: String = "",
