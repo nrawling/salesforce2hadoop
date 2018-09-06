@@ -58,9 +58,6 @@ case class Config(command: String = envOrElseConfig("s2h.command"),
     if(config.command.isEmpty || (config.command.trim != "init" && config.command.trim != "update")) {
       println("You need to enter a valid command (init|update)")
     } else {
-      println(config.command + config.sfUsername + config.sfPassword + config.datasetBasePath +
-              config.sfWSDL + config.stateFile + config.apiBaseUrl + config.apiVersion)
-
       val schemas = WSDL2Avro.convert(config.sfWSDL.getCanonicalPath, filterSFInternalFields)
       val connection = SalesforceService(config.sfUsername, config.sfPassword, config.apiBaseUrl, config.apiVersion)
       val importer = new SFImporter(schemas, config.datasetBasePath, connection)
