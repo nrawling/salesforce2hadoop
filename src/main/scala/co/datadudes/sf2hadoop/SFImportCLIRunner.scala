@@ -13,39 +13,34 @@ import scala.util.Properties
 
 object SFImportCLIRunner extends App with LazyLogging {
 
-class MyConfig(fileNameOption: Option[String] = None) {
-     
-  val config = fileNameOption.fold(
-                  ifEmpty = ConfigFactory.load() )(
-                  file => ConfigFactory.load(file) )
- 
   def envOrElseConfig(name: String): String = {
+    val config = ConfigFactory.load()
+
     Properties.envOrElse(
       name.toUpperCase.replaceAll("""\.""", "_"),
       config.getString(name)
     )
   }
-}
 
-  case class Config(command: String = "",
-                    sfUsername: String = "",
-                    sfPassword: String = "",
-                    datasetBasePath: String = "",
-                    sfWSDL: File = new File("."),
-                    stateFile: URI = new URI("file://" + System.getProperty("user.home") + "/.sf2hadoop/state"),
-                    apiBaseUrl: String = "https://login.salesforce.com",
-                    apiVersion: String = "37.0",
+case class Config(command: String = envOrElseConfig("s2h.command"),
+                    sfUsername: String = envOrElseConfig("s2h.sfUsername"),
+                    sfPassword: String = envOrElseConfig("s2h.sfPassword"),
+                    datasetBasePath: String = envOrElseConfig("s2h.datasetBasePath"),
+                    sfWSDL: File = new File(envOrElseConfig("s2h.sfWSDL")),
+                    stateFile: URI = new URI(envOrElseConfig("s2h.stateFile")), //new URI("file://" + System.getProperty("user.home") + "/.sf2hadoop/state"),
+                    apiBaseUrl: String = envOrElseConfig("s2h.apiBaseUrl"),
+                    apiVersion: String = envOrElseConfig("s2h.apiVersion"),
                     records: Seq[String] = Seq())
 
   val parser = new scopt.OptionParser[Config]("sf2hadoop") {
     head("sf2hadoop", "1.0")
-    cmd("init") required() action { (_, c) => c.copy(command = "init") } text "Initialize one or more new datasets and do initial full imports"
-    cmd("update") required() action { (_, c) => c.copy(command = "update") } text "Update one or more datasets using incremental imports"
+    cmd("init") optional() action { (_, c) => c.copy(command = "init") } text "Initialize one or more new datasets and do initial full imports"
+    cmd("update") optional() action { (_, c) => c.copy(command = "update") } text "(default)Update one or more datasets using incremental imports"
     note("\n")
-    opt[String]('u', "username") required() action { (x, c) => c.copy(sfUsername = x)} text "Salesforce username"
-    opt[String]('p', "password") required() action { (x, c) => c.copy(sfPassword = x)} text "Salesforce password"
-    opt[String]('b', "basepath") required() action { (x, c) => c.copy(datasetBasePath = x)} text "Datasets basepath"
-    opt[File]('w', "wsdl") required() valueName "<file>" action { (x, c) => c.copy(sfWSDL = x)} text "Path to Salesforce Enterprise WSDL"
+    opt[String]('u', "username") optional() action { (x, c) => c.copy(sfUsername = x)} text "Salesforce username"
+    opt[String]('p', "password") optional() action { (x, c) => c.copy(sfPassword = x)} text "Salesforce password"
+    opt[String]('b', "basepath") optional() action { (x, c) => c.copy(datasetBasePath = x)} text "Datasets basepath"
+    opt[File]('w', "wsdl") optional() valueName "<file>" action { (x, c) => c.copy(sfWSDL = x)} text "Path to Salesforce Enterprise WSDL"
     opt[URI]('s', "state") optional() valueName "<URI>" action { (x, c) => c.copy(stateFile = x)} text "URI to state file to keep track of last updated timestamps"
     opt[String]('a', "api-base-url") optional() valueName "<URL>" action { (x, c) => c.copy(apiBaseUrl = x)} text "Base URL of Salesforce instance"
     opt[String]('v', "api-version") optional() valueName "<number>" action { (x, c) => c.copy(apiVersion = x)} text "API version of Salesforce instance"
@@ -63,6 +58,9 @@ class MyConfig(fileNameOption: Option[String] = None) {
     if(config.command.isEmpty || (config.command.trim != "init" && config.command.trim != "update")) {
       println("You need to enter a valid command (init|update)")
     } else {
+      println(config.command + config.sfUsername + config.sfPassword + config.datasetBasePath +
+              config.sfWSDL + config.stateFile + config.apiBaseUrl + config.apiVersion)
+
       val schemas = WSDL2Avro.convert(config.sfWSDL.getCanonicalPath, filterSFInternalFields)
       val connection = SalesforceService(config.sfUsername, config.sfPassword, config.apiBaseUrl, config.apiVersion)
       val importer = new SFImporter(schemas, config.datasetBasePath, connection)
